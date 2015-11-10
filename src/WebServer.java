@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.StringTokenizer;
 
 
@@ -8,24 +9,76 @@ public final class WebServer {
     public static void main(String[] args) throws Exception {
         int port = 6789;
         ServerSocket serverSocket = new ServerSocket(port);
+        String mimePath = "./mime.types";
+        if(args.length == 2 && args[0].equals("-mime")){
+            mimePath = args[1];
+        }
+        HashMap mimeTypes = loadMimeTypes(mimePath);
 
         //For each incoming connection a new HttpRequest object (Finished)
         while (true) {
-            HttpRequest request = new HttpRequest(serverSocket.accept());
+            HttpRequest request = new HttpRequest(serverSocket.accept(), mimeTypes);
             Thread thread = new Thread(request);
             thread.start();
         }
+    }
+
+    private static HashMap loadMimeTypes(String mimeFilePath) {
+        HashMap mimetype = new HashMap();
+        String key;
+        String value;
+
+        //Check if file is present
+        File file = new File(mimeFilePath);
+        if (!file.canRead() || !file.isFile()) {
+            System.out.println("Could not find mime.types");
+            System.exit(0);
+        }
+
+        StringTokenizer tokens;
+        int tokencount;
+        BufferedReader in = null;
+        try {
+            in = new BufferedReader(new FileReader(mimeFilePath));
+            String zeile = null;
+            System.out.println("Loading mime.types");
+            while ((zeile = in.readLine()) != null) {
+                if (!zeile.startsWith("#")) {
+                    tokens = new StringTokenizer(zeile);
+                    tokencount = tokens.countTokens();
+                    if (tokencount < 2) {
+                        continue;
+                    }
+                    value = tokens.nextToken();
+                    while (tokens.hasMoreElements()) {
+                        key = tokens.nextElement().toString();
+                        mimetype.put(key, value);
+                        System.out.println(key+" "+value);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (in != null)
+                try {
+                    in.close();
+                } catch (IOException e) {
+                }
+        }
+        return mimetype;
     }
 }
 
 final class HttpRequest implements Runnable {
 
     final static String CRLF = "\r\n";
-
     Socket socket;
+    HashMap mimeTypes;
 
-    public HttpRequest(Socket socket) throws Exception {
+    public HttpRequest(Socket socket, HashMap mt) throws Exception {
         this.socket = socket;
+        mimeTypes = mt;
     }
 
     @Override
@@ -90,7 +143,7 @@ final class HttpRequest implements Runnable {
         if (fileExists) {
             statusLine = "HTTP/1.0 200 OK";
             contentTypeLine = "Content-type: " +
-                    contentType(fileName) + CRLF;
+                    contentType(fileName);
         } else {
             statusLine = "HTTP/1.0 404 Not Found";
             contentTypeLine = "text/html";
@@ -100,7 +153,7 @@ final class HttpRequest implements Runnable {
                     "<h1>Not Found</h1>\n" +
                     "<p>The requested URL " + fileName + " was not found on this server.</p>\n" +
                     "<p>Client-Information IP: " + socket.getInetAddress() + " </p>\n" +
-                    "<p>Client-Information "+userAgent+" </p>\n" +
+                    "<p>Client-Information " + userAgent + " </p>\n" +
                     "<hr>\n" +
                     "<address>Server at " + socket.getLocalAddress() + " Port 6789</address>\n" +
                     "</body></html>";
@@ -110,7 +163,7 @@ final class HttpRequest implements Runnable {
         os.writeBytes(statusLine + CRLF);
 
         // Send the content type line.
-        os.writeBytes("Content-Type: " + contentTypeLine + ";" + CRLF);
+        os.writeBytes(contentTypeLine + ";" + CRLF);
 
         // Send a blank line to indicate the end of the header lines.
         os.writeBytes(CRLF);
@@ -130,20 +183,18 @@ final class HttpRequest implements Runnable {
         socket.close();
     }
 
-    //TODO
     private String contentType(String fileName) {
-
-        return "";
+        return mimeTypes.get(fileName.substring(fileName.lastIndexOf('.')+1)).toString();
     }
+
     private static void sendBytes(FileInputStream fis, OutputStream os)
-            throws Exception
-    {
+            throws Exception {
         // Construct a 1K buffer to hold bytes on their way to the socket.
         byte[] buffer = new byte[1024];
         int bytes = 0;
 
         // Copy requested file into the socket's output stream.
-        while((bytes = fis.read(buffer)) != -1 ) {
+        while ((bytes = fis.read(buffer)) != -1) {
             os.write(buffer, 0, bytes);
         }
     }
