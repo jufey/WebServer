@@ -10,7 +10,7 @@ public final class WebServer {
         int port = 6789;
         ServerSocket serverSocket = new ServerSocket(port);
         String mimePath = "./mime.types";
-        if(args.length == 2 && args[0].equals("-mime")){
+        if (args.length == 2 && args[0].equals("-mime")) {
             mimePath = args[1];
         }
         HashMap mimeTypes = loadMimeTypes(mimePath);
@@ -53,7 +53,7 @@ public final class WebServer {
                     while (tokens.hasMoreElements()) {
                         key = tokens.nextElement().toString();
                         mimetype.put(key, value);
-                        System.out.println(key+" "+value);
+                        System.out.println(key + " " + value);
                     }
                 }
             }
@@ -118,7 +118,8 @@ final class HttpRequest implements Runnable {
 
         //Tokenize the request line to get the requested file
         StringTokenizer tokens = new StringTokenizer(requestLine);
-        tokens.nextToken();
+        String method = tokens.nextToken();
+        System.out.println(method);
         String fileName = tokens.nextToken();
 
         // Prepend a "." so that file request is within the current directory.
@@ -146,7 +147,7 @@ final class HttpRequest implements Runnable {
                     contentType(fileName);
         } else {
             statusLine = "HTTP/1.0 404 Not Found";
-            contentTypeLine = "text/html";
+            contentTypeLine = "Content-type: " + "text/html";
             entityBody = "<html><head>\n" +
                     "<title>404 Not Found</title>\n" +
                     "</head><body>\n" +
@@ -169,11 +170,13 @@ final class HttpRequest implements Runnable {
         os.writeBytes(CRLF);
 
         // Send the entity body.
-        if (fileExists) {
-            sendBytes(fis, os);
-            fis.close();
-        } else {
-            os.writeBytes(entityBody);
+        if (!method.equals("HEAD")) {
+            if (fileExists) {
+                sendBytes(fis, os);
+                fis.close();
+            } else {
+                os.writeBytes(entityBody);
+            }
         }
 
 
@@ -184,7 +187,11 @@ final class HttpRequest implements Runnable {
     }
 
     private String contentType(String fileName) {
-        return mimeTypes.get(fileName.substring(fileName.lastIndexOf('.')+1)).toString();
+        try {
+            return mimeTypes.get(fileName.substring(fileName.lastIndexOf('.') + 1)).toString();
+        }catch (NullPointerException e){
+            return "application/octet-stream";
+        }
     }
 
     private static void sendBytes(FileInputStream fis, OutputStream os)
