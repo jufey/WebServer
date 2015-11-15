@@ -19,6 +19,7 @@ public final class WebServer {
         HashMap mimeTypes = loadMimeTypes(mimePath);
 
         //For each incoming connection a new HttpRequest object (Finished)
+        boolean running = true;
         while (true) {
             HttpRequest request = new HttpRequest(serverSocket.accept(), mimeTypes);
             Thread thread = new Thread(request);
@@ -43,7 +44,7 @@ public final class WebServer {
         BufferedReader in = null;
         try {
             in = new BufferedReader(new FileReader(mimeFilePath));
-            String zeile = null;
+            String zeile;
             System.out.println("Loading mime.types");
             while ((zeile = in.readLine()) != null) {
                 if (!zeile.startsWith("#")) {
@@ -67,7 +68,10 @@ public final class WebServer {
                 try {
                     in.close();
                 } catch (IOException e) {
+                    e.printStackTrace();
                 }
+
+
         }
         return mimetype;
     }
@@ -89,7 +93,7 @@ final class HttpRequest implements Runnable {
         try {
             processHttpRequest();
         } catch (Exception e) {
-            System.out.println(e);
+            e.printStackTrace();
         }
     }
 
@@ -112,7 +116,6 @@ final class HttpRequest implements Runnable {
         //Tokenize the request line to get the requested file
         StringTokenizer tokens = new StringTokenizer(requestLine);
         String method = tokens.nextToken();
-        System.out.println(method);
         String fileName = tokens.nextToken();
 
         // Get and display the header lines.
@@ -138,7 +141,7 @@ final class HttpRequest implements Runnable {
                 System.out.println("Problem while reading ContentBody");
             }
             content = new String(contentArray);
-            System.out.println("Post-Body-Content: " +content);
+            System.out.println("Post-Body-Content: " + content);
         }
 
         //if there is no specific requested URL, send default URL
@@ -149,7 +152,7 @@ final class HttpRequest implements Runnable {
 
         // Prepend a "." so that file request is within the current directory.
         fileName = "." + fileName;
-        System.out.println("Requested URL: "+fileName);
+        System.out.println("Requested URL: " + fileName);
 
         // Open the requested file.
         FileInputStream fis = null;
@@ -217,7 +220,9 @@ final class HttpRequest implements Runnable {
                 sendBytes(fis, os);
                 fis.close();
             } else {
-                os.writeBytes(entityBody);
+                if (entityBody != null) {
+                    os.writeBytes(entityBody);
+                }
             }
         }
 
@@ -240,7 +245,7 @@ final class HttpRequest implements Runnable {
             throws Exception {
         // Construct a 1K buffer to hold bytes on their way to the socket.
         byte[] buffer = new byte[1024];
-        int bytes = 0;
+        int bytes;
 
         // Copy requested file into the socket's output stream.
         while ((bytes = fis.read(buffer)) != -1) {
