@@ -107,7 +107,7 @@ final class HttpRequest implements Runnable {
         System.out.println(requestLine);
 
         // Get and display the header lines.
-        String headerLine = null;
+        String headerLine;
         String userAgent = null;
         while ((headerLine = br.readLine()).length() != 0) {
             if (headerLine.startsWith("User-Agent")) {
@@ -121,6 +121,12 @@ final class HttpRequest implements Runnable {
         String method = tokens.nextToken();
         System.out.println(method);
         String fileName = tokens.nextToken();
+
+        //if there is no specific requested URL, send default URL
+        String defaultURL = "/index.html";
+        if (fileName.equals("/")) {
+            fileName = defaultURL;
+        }
 
         // Prepend a "." so that file request is within the current directory.
         fileName = "." + fileName;
@@ -138,27 +144,45 @@ final class HttpRequest implements Runnable {
 
 
         // Construct the response message.
-        String statusLine = null;
-        String contentTypeLine = null;
+        String statusLine;
+        String contentTypeLine;
         String entityBody = null;
-        if (fileExists) {
-            statusLine = "HTTP/1.0 200 OK";
-            contentTypeLine = "Content-type: " +
-                    contentType(fileName);
-        } else {
-            statusLine = "HTTP/1.0 404 Not Found";
+        //Allowed methods are GET and HEAD
+        if (method.equalsIgnoreCase("GET") || method.equalsIgnoreCase("HEAD")) {
+            if (fileExists) {
+                statusLine = "HTTP/1.0 200 OK";
+                contentTypeLine = "Content-type: " +
+                        contentType(fileName);
+            } else {
+                statusLine = "HTTP/1.0 404 Not Found";
+                contentTypeLine = "Content-type: " + "text/html";
+                entityBody = "<html><head>\n" +
+                        "<title>404 Not Found</title>\n" +
+                        "</head><body>\n" +
+                        "<h1>Not Found</h1>\n" +
+                        "<p>The requested URL " + fileName + " was not found on this server.</p>\n" +
+                        "<p>Client-Information IP: " + socket.getInetAddress() + " </p>\n" +
+                        "<p>Client-Information " + userAgent + " </p>\n" +
+                        "<hr>\n" +
+                        "<address>Server at " + socket.getLocalAddress() + " Port "+socket.getLocalPort()+"</address>\n" +
+                        "</body></html>";
+            }
+        }else{
+            //Not allowed method get "501 Not Implemented"-Response
+            statusLine = "HTTP/1.0 501 Not Implemented";
             contentTypeLine = "Content-type: " + "text/html";
             entityBody = "<html><head>\n" +
-                    "<title>404 Not Found</title>\n" +
+                    "<title>501 Not Implemented</title>\n" +
                     "</head><body>\n" +
-                    "<h1>Not Found</h1>\n" +
-                    "<p>The requested URL " + fileName + " was not found on this server.</p>\n" +
-                    "<p>Client-Information IP: " + socket.getInetAddress() + " </p>\n" +
-                    "<p>Client-Information " + userAgent + " </p>\n" +
+                    "<h1>Not Implemented</h1>\n" +
+                    "<p>The request-method you use is not implemented for now.</p>\n" +
+                    "<p>We are continuously improving our WebServer.</p>\n" +
+                    "<p>Contact: justin.marks@hhu.de.</p>\n" +
                     "<hr>\n" +
                     "<address>Server at " + socket.getLocalAddress() + " Port 6789</address>\n" +
                     "</body></html>";
         }
+
 
         // Send the status line.
         os.writeBytes(statusLine + CRLF);
@@ -189,7 +213,7 @@ final class HttpRequest implements Runnable {
     private String contentType(String fileName) {
         try {
             return mimeTypes.get(fileName.substring(fileName.lastIndexOf('.') + 1)).toString();
-        }catch (NullPointerException e){
+        } catch (NullPointerException e) {
             return "application/octet-stream";
         }
     }
