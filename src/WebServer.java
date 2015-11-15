@@ -1,6 +1,9 @@
+import com.sun.org.apache.xpath.internal.SourceTree;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
@@ -106,21 +109,37 @@ final class HttpRequest implements Runnable {
         System.out.println();
         System.out.println(requestLine);
 
-        // Get and display the header lines.
-        String headerLine;
-        String userAgent = null;
-        while ((headerLine = br.readLine()).length() != 0) {
-            if (headerLine.startsWith("User-Agent")) {
-                userAgent = headerLine;
-            }
-            System.out.println(headerLine);
-        }
-
         //Tokenize the request line to get the requested file
         StringTokenizer tokens = new StringTokenizer(requestLine);
         String method = tokens.nextToken();
         System.out.println(method);
         String fileName = tokens.nextToken();
+
+        // Get and display the header lines.
+        String headerLine;
+        String userAgent = null;
+        int contentLength = 0;
+        String content;
+        while ((headerLine = br.readLine()).length() != 0) {
+            if (headerLine.startsWith("User-Agent")) {
+                userAgent = headerLine;
+            }
+            if (headerLine.startsWith("Content-Length:")) {
+                StringTokenizer contenLengthLine = new StringTokenizer(headerLine);
+                contenLengthLine.nextToken();
+                contentLength = Integer.parseInt(contenLengthLine.nextToken());
+            }
+            System.out.println(headerLine);
+        }
+        //If the the method is POST, read the body
+        if (method.equalsIgnoreCase("POST")) {
+            char[] contentArray = new char[contentLength];
+            if (br.read(contentArray, 0, contentLength) == -1) {
+                System.out.println("Problem while reading ContentBody");
+            }
+            content = new String(contentArray);
+            System.out.println("Post-Body-Content: " +content);
+        }
 
         //if there is no specific requested URL, send default URL
         String defaultURL = "/index.html";
@@ -130,8 +149,7 @@ final class HttpRequest implements Runnable {
 
         // Prepend a "." so that file request is within the current directory.
         fileName = "." + fileName;
-
-        System.out.println(fileName);
+        System.out.println("Requested URL: "+fileName);
 
         // Open the requested file.
         FileInputStream fis = null;
@@ -164,10 +182,10 @@ final class HttpRequest implements Runnable {
                         "<p>Client-Information IP: " + socket.getInetAddress() + " </p>\n" +
                         "<p>Client-Information " + userAgent + " </p>\n" +
                         "<hr>\n" +
-                        "<address>Server at " + socket.getLocalAddress() + " Port "+socket.getLocalPort()+"</address>\n" +
+                        "<address>Server at " + socket.getLocalAddress() + " Port " + socket.getLocalPort() + "</address>\n" +
                         "</body></html>";
             }
-        }else{
+        } else {
             //Not allowed method get "501 Not Implemented"-Response
             statusLine = "HTTP/1.0 501 Not Implemented";
             contentTypeLine = "Content-type: " + "text/html";
@@ -195,7 +213,7 @@ final class HttpRequest implements Runnable {
 
         // Send the entity body.
         if (!method.equals("HEAD")) {
-            if (fileExists) {
+            if (fileExists && !method.equalsIgnoreCase("POST")) {
                 sendBytes(fis, os);
                 fis.close();
             } else {
