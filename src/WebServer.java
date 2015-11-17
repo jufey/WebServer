@@ -133,7 +133,7 @@ final class HttpRequest implements Runnable {
                 StringTokenizer contentLengthLine = new StringTokenizer(headerLine);
                 contentLengthLine.nextToken();
                 try {
-                    //Content-Length has to be a positive number
+                    //Content-Length has to be a positive number or Zero
                     contentLength = Integer.parseInt(contentLengthLine.nextToken());
                     if (contentLength < 0) {
                         badRequest = true;
@@ -174,7 +174,6 @@ final class HttpRequest implements Runnable {
         } catch (FileNotFoundException e) {
             fileExists = false;
         }
-
 
         // Construct the response message.
         String statusLine = null;
@@ -256,7 +255,7 @@ final class HttpRequest implements Runnable {
             }
         }
 
-        // Close streams and socket.
+        //Close streams and socket.
         //Close BufferedReader
         try {
             br.close();
