@@ -1,9 +1,6 @@
-import com.sun.org.apache.xpath.internal.SourceTree;
-
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
@@ -20,15 +17,20 @@ public final class WebServer {
 
         //For each incoming connection a new HttpRequest object (Finished)
         boolean running = true;
-        while (true) {
+        while (running) {
             HttpRequest request = new HttpRequest(serverSocket.accept(), mimeTypes);
             Thread thread = new Thread(request);
             thread.start();
         }
+        try {
+            serverSocket.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the ServerSocket");
+        }
     }
 
-    private static HashMap loadMimeTypes(String mimeFilePath) {
-        HashMap mimetype = new HashMap();
+    private static HashMap<String, String> loadMimeTypes(String mimeFilePath) {
+        HashMap<String, String> mimeType = new HashMap<>();
         String key;
         String value;
 
@@ -40,23 +42,23 @@ public final class WebServer {
         }
 
         StringTokenizer tokens;
-        int tokencount;
+        int tokenCount;
         BufferedReader in = null;
         try {
             in = new BufferedReader(new FileReader(mimeFilePath));
-            String zeile;
+            String line;
             System.out.println("Loading mime.types");
-            while ((zeile = in.readLine()) != null) {
-                if (!zeile.startsWith("#")) {
-                    tokens = new StringTokenizer(zeile);
-                    tokencount = tokens.countTokens();
-                    if (tokencount < 2) {
+            while ((line = in.readLine()) != null) {
+                if (!line.startsWith("#")) {
+                    tokens = new StringTokenizer(line);
+                    tokenCount = tokens.countTokens();
+                    if (tokenCount < 2) {
                         continue;
                     }
                     value = tokens.nextToken();
                     while (tokens.hasMoreElements()) {
                         key = tokens.nextElement().toString();
-                        mimetype.put(key, value);
+                        mimeType.put(key, value);
                         System.out.println(key + " " + value);
                     }
                 }
@@ -70,10 +72,8 @@ public final class WebServer {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-
-
         }
-        return mimetype;
+        return mimeType;
     }
 }
 
@@ -123,19 +123,31 @@ final class HttpRequest implements Runnable {
         String userAgent = null;
         int contentLength = 0;
         String content;
+        boolean badRequest = false;
+        boolean isError = false;
         while ((headerLine = br.readLine()).length() != 0) {
             if (headerLine.startsWith("User-Agent")) {
                 userAgent = headerLine;
             }
             if (headerLine.startsWith("Content-Length:")) {
-                StringTokenizer contenLengthLine = new StringTokenizer(headerLine);
-                contenLengthLine.nextToken();
-                contentLength = Integer.parseInt(contenLengthLine.nextToken());
+                StringTokenizer contentLengthLine = new StringTokenizer(headerLine);
+                contentLengthLine.nextToken();
+                try {
+                    //Content-Length has to be a positive number
+                    contentLength = Integer.parseInt(contentLengthLine.nextToken());
+                    if (contentLength < 0) {
+                        badRequest = true;
+                    }
+                } catch (NumberFormatException e) {
+                    badRequest = true;
+                    isError = true;
+                }
             }
             System.out.println(headerLine);
         }
         //If the the method is POST, read the body
-        if (method.equalsIgnoreCase("POST")) {
+        if (method.equalsIgnoreCase("POST") && !badRequest) {
+            isError = true;
             char[] contentArray = new char[contentLength];
             if (br.read(contentArray, 0, contentLength) == -1) {
                 System.out.println("Problem while reading ContentBody");
@@ -165,8 +177,8 @@ final class HttpRequest implements Runnable {
 
 
         // Construct the response message.
-        String statusLine;
-        String contentTypeLine;
+        String statusLine = null;
+        String contentTypeLine = null;
         String entityBody = null;
         //Allowed methods are GET and HEAD
         if (method.equalsIgnoreCase("GET") || method.equalsIgnoreCase("HEAD")) {
@@ -188,7 +200,8 @@ final class HttpRequest implements Runnable {
                         "<address>Server at " + socket.getLocalAddress() + " Port " + socket.getLocalPort() + "</address>\n" +
                         "</body></html>";
             }
-        } else {
+        }
+        if (isError) {
             //Not allowed method get "501 Not Implemented"-Response
             statusLine = "HTTP/1.0 501 Not Implemented";
             contentTypeLine = "Content-type: " + "text/html";
@@ -200,10 +213,23 @@ final class HttpRequest implements Runnable {
                     "<p>We are continuously improving our WebServer.</p>\n" +
                     "<p>Contact: justin.marks@hhu.de.</p>\n" +
                     "<hr>\n" +
-                    "<address>Server at " + socket.getLocalAddress() + " Port 6789</address>\n" +
+                    "<address>Server at " + socket.getLocalAddress() + " Port " + socket.getLocalPort() + "</address>\n" +
                     "</body></html>";
         }
-
+        if (badRequest) {
+            //"Bad Request"-Response
+            statusLine = "HTTP/1.0 400 Bad Request";
+            contentTypeLine = "Content-type: " + "text/html";
+            entityBody = "<html><head>\n" +
+                    "<title>400 Bad Request</title>\n" +
+                    "</head><body>\n" +
+                    "<h1>Bad Request</h1>\n" +
+                    "<p>The request-method you use contains a faulty line.</p>\n" +
+                    "<p>Contact: justin.marks@hhu.de.</p>\n" +
+                    "<hr>\n" +
+                    "<address>Server at " + socket.getLocalAddress() + " Port " + socket.getLocalPort() + "</address>\n" +
+                    "</body></html>";
+        }
 
         // Send the status line.
         os.writeBytes(statusLine + CRLF);
@@ -216,9 +242,13 @@ final class HttpRequest implements Runnable {
 
         // Send the entity body.
         if (!method.equals("HEAD")) {
-            if (fileExists && !method.equalsIgnoreCase("POST")) {
+            if (fileExists && !isError) {
                 sendBytes(fis, os);
-                fis.close();
+                try {
+                    fis.close();
+                } catch (Exception e) {
+                    System.out.println("Problem while closing the FileInputStream");
+                }
             } else {
                 if (entityBody != null) {
                     os.writeBytes(entityBody);
@@ -226,11 +256,31 @@ final class HttpRequest implements Runnable {
             }
         }
 
-
         // Close streams and socket.
-        os.close();
-        br.close();
-        socket.close();
+        //Close BufferedReader
+        try {
+            br.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the BufferedReader");
+        }
+        //Close InputStream
+        try {
+            is.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the InputStream");
+        }
+        //Close DataOutputStream
+        try {
+            os.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the DataOutputStream");
+        }
+        //Close socket
+        try {
+            socket.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the socket");
+        }
     }
 
     private String contentType(String fileName) {
