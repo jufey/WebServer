@@ -1,8 +1,8 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.StringTokenizer;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 
 public final class WebServer {
@@ -236,6 +236,11 @@ final class HttpRequest implements Runnable {
         // Send the content type line.
         os.writeBytes(contentTypeLine + ";" + CRLF);
 
+
+        //
+        String dateLine = "Date : "+getTime();
+        os.writeBytes(dateLine + CRLF);
+
         // Send a blank line to indicate the end of the header lines.
         os.writeBytes(CRLF);
 
@@ -300,5 +305,12 @@ final class HttpRequest implements Runnable {
         while ((bytes = fis.read(buffer)) != -1) {
             os.write(buffer, 0, bytes);
         }
+    }
+    private static String getTime(){
+        Calendar calendar = Calendar.getInstance();
+        SimpleDateFormat dateFormat = new SimpleDateFormat(
+                "EEE, dd MMM yyyy HH:mm:ss z");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+       return dateFormat.format(calendar.getTime());
     }
 }
