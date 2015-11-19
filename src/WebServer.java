@@ -93,7 +93,7 @@ final class HttpRequest implements Runnable {
         try {
             processHttpRequest();
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error: Connection Closed");
         }
     }
 
@@ -107,7 +107,35 @@ final class HttpRequest implements Runnable {
         BufferedReader br = new BufferedReader(new InputStreamReader(is));
 
         // Get the request line of the HTTP request message.
-        String requestLine = br.readLine();
+        String requestLine;
+        if ((requestLine = br.readLine()).length() == 0) {
+            System.out.println("Empty Message: Connection closed");
+            //Close BufferedReader
+            try {
+                br.close();
+            } catch (Exception e) {
+                System.out.println("Problem while closing the BufferedReader");
+            }
+            //Close InputStream
+            try {
+                is.close();
+            } catch (Exception e) {
+                System.out.println("Problem while closing the InputStream");
+            }
+            //Close DataOutputStream
+            try {
+                os.close();
+            } catch (Exception e) {
+                System.out.println("Problem while closing the DataOutputStream");
+            }
+            //Close socket
+            try {
+                socket.close();
+            } catch (Exception e) {
+                System.out.println("Problem while closing the socket");
+            }
+            return;
+        }
 
         // Display the request line.
         System.out.println();
@@ -172,6 +200,7 @@ final class HttpRequest implements Runnable {
         try {
             fis = new FileInputStream(fileName);
         } catch (FileNotFoundException e) {
+            System.out.println("File does not exist.");
             fileExists = false;
         }
 
@@ -238,7 +267,7 @@ final class HttpRequest implements Runnable {
 
 
         //
-        String dateLine = "Date : "+getTime();
+        String dateLine = "Date : " + getTime();
         os.writeBytes(dateLine + CRLF);
 
         // Send a blank line to indicate the end of the header lines.
@@ -306,11 +335,12 @@ final class HttpRequest implements Runnable {
             os.write(buffer, 0, bytes);
         }
     }
-    private static String getTime(){
+
+    private static String getTime() {
         Calendar calendar = Calendar.getInstance();
         SimpleDateFormat dateFormat = new SimpleDateFormat(
                 "EEE, dd MMM yyyy HH:mm:ss z");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-       return dateFormat.format(calendar.getTime());
+        return dateFormat.format(calendar.getTime());
     }
 }
