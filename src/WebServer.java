@@ -316,13 +316,11 @@ final class HttpRequest implements Runnable {
     public void closeConnections() {
         //Close streams and socket.
         //Close BufferedReader
-        System.out.println("Close all streams");
         try {
             socket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-
         try {
             br.close();
         } catch (Exception e) {
@@ -346,7 +344,6 @@ final class HttpRequest implements Runnable {
 }
 
 final class HttpTimeout implements Runnable {
-    private int timeout = 15000;
     private boolean isStop = false;
     private HttpRequest parent;
 
@@ -358,7 +355,9 @@ final class HttpTimeout implements Runnable {
     public void run() {
         final long timeStart = System.currentTimeMillis();
 
-        while (System.currentTimeMillis()-timeStart<timeout) {
+        int timeout = 15000;
+        while (System.currentTimeMillis()-timeStart< timeout) {
+            //waiting
         }
         if (!isStop) {
             parent.closeConnections();
