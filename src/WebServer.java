@@ -82,6 +82,9 @@ final class HttpRequest implements Runnable {
     final static String CRLF = "\r\n";
     Socket socket;
     HashMap mimeTypes;
+    InputStream is;
+    DataOutputStream os;
+    BufferedReader br;
 
     public HttpRequest(Socket socket, HashMap mt) throws Exception {
         this.socket = socket;
@@ -100,43 +103,27 @@ final class HttpRequest implements Runnable {
     private void processHttpRequest() throws Exception {
 
         //Socket input and output streams
-        InputStream is = socket.getInputStream();
-        DataOutputStream os = new DataOutputStream(socket.getOutputStream());
+        is = socket.getInputStream();
+        os = new DataOutputStream(socket.getOutputStream());
 
         //Filter to read the input
-        BufferedReader br = new BufferedReader(new InputStreamReader(is));
+        br = new BufferedReader(new InputStreamReader(is));
+
+        //A timeout time, set to 10Sec.
+        // In this time frame the server has to read
+        // After this time,the server is closing all streams
+
+        HttpTimeout timeout = new HttpTimeout(this);
+        Thread thread = new Thread(timeout);
+        thread.start();
 
         // Get the request line of the HTTP request message.
         String requestLine;
         if ((requestLine = br.readLine()).length() == 0) {
             System.out.println("Empty Message: Connection closed");
-            //Close BufferedReader
-            try {
-                br.close();
-            } catch (Exception e) {
-                System.out.println("Problem while closing the BufferedReader");
-            }
-            //Close InputStream
-            try {
-                is.close();
-            } catch (Exception e) {
-                System.out.println("Problem while closing the InputStream");
-            }
-            //Close DataOutputStream
-            try {
-                os.close();
-            } catch (Exception e) {
-                System.out.println("Problem while closing the DataOutputStream");
-            }
-            //Close socket
-            try {
-                socket.close();
-            } catch (Exception e) {
-                System.out.println("Problem while closing the socket");
-            }
+            closeConnections();
             return;
         }
-
         // Display the request line.
         System.out.println();
         System.out.println(requestLine);
@@ -183,6 +170,10 @@ final class HttpRequest implements Runnable {
             content = new String(contentArray);
             System.out.println("Post-Body-Content: " + content);
         }
+
+        //At this point everything is read, therefore the time stops here
+        timeout.stopTimer();
+
 
         //if there is no specific requested URL, send default URL
         String defaultURL = "/index.html";
@@ -288,32 +279,10 @@ final class HttpRequest implements Runnable {
                 }
             }
         }
+        //Close all streams
+        closeConnections();
 
-        //Close streams and socket.
-        //Close BufferedReader
-        try {
-            br.close();
-        } catch (Exception e) {
-            System.out.println("Problem while closing the BufferedReader");
-        }
-        //Close InputStream
-        try {
-            is.close();
-        } catch (Exception e) {
-            System.out.println("Problem while closing the InputStream");
-        }
-        //Close DataOutputStream
-        try {
-            os.close();
-        } catch (Exception e) {
-            System.out.println("Problem while closing the DataOutputStream");
-        }
-        //Close socket
-        try {
-            socket.close();
-        } catch (Exception e) {
-            System.out.println("Problem while closing the socket");
-        }
+
     }
 
     private String contentType(String fileName) {
@@ -342,5 +311,61 @@ final class HttpRequest implements Runnable {
                 "EEE, dd MMM yyyy HH:mm:ss z");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
         return dateFormat.format(calendar.getTime());
+    }
+
+    public void closeConnections() {
+        //Close streams and socket.
+        //Close BufferedReader
+        System.out.println("Close all streams");
+        try {
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            br.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the BufferedReader");
+        }
+        //Close InputStream
+        try {
+            is.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the InputStream");
+        }
+        //Close DataOutputStream
+        try {
+            os.close();
+        } catch (Exception e) {
+            System.out.println("Problem while closing the DataOutputStream");
+        }
+
+    }
+
+}
+
+final class HttpTimeout implements Runnable {
+    private int timeout = 15000;
+    private boolean isStop = false;
+    private HttpRequest parent;
+
+    public HttpTimeout(HttpRequest p) {
+        this.parent = p;
+    }
+
+    @Override
+    public void run() {
+        final long timeStart = System.currentTimeMillis();
+
+        while (System.currentTimeMillis()-timeStart<timeout) {
+        }
+        if (!isStop) {
+            parent.closeConnections();
+        }
+    }
+
+    public void stopTimer() {
+        isStop = true;
     }
 }
