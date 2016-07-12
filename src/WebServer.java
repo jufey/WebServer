@@ -14,6 +14,7 @@ public final class WebServer {
             mimePath = args[1];
         }
         HashMap mimeTypes = loadMimeTypes(mimePath);
+        double test2;
 
         //For each incoming connection a new HttpRequest object (Finished)
         boolean running = true;
