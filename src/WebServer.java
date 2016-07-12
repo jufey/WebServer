@@ -7,6 +7,9 @@ import java.util.*;
 
 public final class WebServer {
     public static void main(String[] args) throws Exception {
+        int test;
+        int test12;
+
         int port = 6789;
         ServerSocket serverSocket = new ServerSocket(port);
         String mimePath = "./mime.types";
