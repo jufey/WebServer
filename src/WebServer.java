@@ -20,7 +20,7 @@ public final class WebServer {
         double test2;
         double test3;
         double test4;
-        double test5;
+        double test52;
 
         //For each incoming connection a new HttpRequest object (Finished)
         boolean running = true;
